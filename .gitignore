@@ -69,3 +69,19 @@ USER.md
 
 # local tooling
 .serena/
+
+# Plumbot specific - do not track
+prototype/
+openclaw/data/
+openclaw/*.env
+openclaw/.env.*
+*.sqlite
+*.db
+google-credentials.json
+data/quotes/
+data/*.json
+
+# Sensitive
+*.pem
+*.key
+secrets/

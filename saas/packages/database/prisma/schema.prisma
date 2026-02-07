@@ -1,0 +1,182 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id                     String   @id @default(uuid())
+  businessName          String
+  email                 String   @unique
+  phone                 String?
+  tier                  String   @default("plumbum") // plumbum, gold, platinum
+  stripeCustomerId      String?
+  stripeSubscriptionId  String?
+  botToken              String   @unique
+  status                String   @default("active") // active, suspended, cancelled
+  nextQuoteNumber       Int      @default(1)
+  nextInvoiceNumber     Int      @default(1)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  // Relations
+  settings   TenantSettings?
+  users      User[]
+  customers  Customer[]
+  quotes     Quote[]
+  invoices   Invoice[]
+  bookings   Booking[]
+
+  @@map("tenants")
+}
+
+model TenantSettings {
+  id                    String  @id @default(uuid())
+  tenantId              String  @unique
+  
+  // Business details
+  businessAddress       String[]
+  businessPhone         String?
+  businessEmail         String?
+  vatNumber             String?
+  
+  // Bank details for invoices
+  bankName              String?
+  bankSortCode          String?
+  bankAccountNumber     String?
+  bankAccountName       String?
+  
+  // Pricing
+  hourlyRate            Int     @default(100) // in pence
+  currency              String  @default("GBP")
+  
+  // Branding
+  logoUrl               String?
+  
+  // Relations
+  tenant                Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("tenant_settings")
+}
+
+model User {
+  id          String   @id @default(uuid())
+  tenantId    String
+  telegramId  BigInt   @unique
+  role        String   @default("owner") // owner, office, field
+  name        String?
+  email       String?
+  createdAt   DateTime @default(now())
+
+  // Relations
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("users")
+}
+
+model Customer {
+  id          String   @id @default(uuid())
+  tenantId    String
+  name        String
+  phone       String?
+  email       String?
+  address     String?
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  quotes      Quote[]
+  invoices    Invoice[]
+  bookings    Booking[]
+
+  @@map("customers")
+}
+
+model Quote {
+  id              String   @id @default(uuid())
+  tenantId        String
+  customerId      String
+  quoteNumber     String
+  
+  // Line items stored as JSON
+  lineItems       Json     // [{ description: string, amount: number }]
+  subtotal        Int      // in pence
+  vatRate         Int      @default(20) // percentage
+  vatAmount       Int      // in pence
+  total           Int      // in pence
+  
+  // Files
+  pdfUrl          String?
+  
+  // Status
+  status          String   @default("draft") // draft, sent, accepted, rejected
+  
+  // Relations
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer        Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  invoice         Invoice?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("quotes")
+}
+
+model Invoice {
+  id              String    @id @default(uuid())
+  tenantId        String
+  customerId      String
+  quoteId         String?   @unique
+  invoiceNumber   String
+  
+  amount          Int       // in pence
+  description     String?
+  
+  // Files
+  pdfUrl          String?
+  
+  // Status
+  status          String    @default("pending") // pending, paid, overdue, cancelled
+  paidAt          DateTime?
+  
+  // Relations
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer        Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  quote           Quote?    @relation(fields: [quoteId], references: [id])
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("invoices")
+}
+
+model Booking {
+  id              String   @id @default(uuid())
+  tenantId        String
+  customerId      String
+  
+  title           String
+  description     String?
+  startTime       DateTime
+  durationMinutes Int      @default(60)
+  
+  // Files
+  icsFileUrl      String?
+  
+  // Status
+  status          String   @default("scheduled") // scheduled, completed, cancelled
+  
+  // Relations
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer        Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("bookings")
+}
